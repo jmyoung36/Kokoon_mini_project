@@ -12,6 +12,8 @@ import numpy as np
 from sklearn.linear_model import ElasticNetCV
 from sklearn.model_selection import KFold
 from sklearn.metrics import mean_squared_error
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import RBF, RationalQuadratic, DotProduct
 
 # set directories
 data_dir = '../data/'
@@ -90,9 +92,15 @@ test_data = test_data / train_data_max
 # initialise the regressor: regression with elastic net penalty
 # use internal CV to fit l1 ratio regression parameter
 # leave others as default
+# regularisation minimises overfitting
+# also encourages sparsity to improve model interpretability
 rgr = ElasticNetCV(l1_ratio=[.01, .05, .1, .5, .7, .9, .95, .99, 1])
 
-# try cross validation on train data only to cpmpare methods
+# initialise alternative regressor: Gaussian process w choice of kernels
+kernel = RationalQuadratic()
+gpr = GaussianProcessRegressor(kernel=kernel)
+
+# try cross validation on train data only to compare methods
 # to hold predictions
 n_folds = 10
 rmse_per_fold = np.zeros(n_folds,)
@@ -106,13 +114,15 @@ for i, (train_index, test_index) in enumerate(kf.split(train_data)) :
     fold_test_data = train_data[test_index, :]
     fold_train_labels = log_train_sale_price[train_index]
     fold_test_labels = log_train_sale_price[test_index]
-    rgr.fit(fold_train_data, fold_train_labels)
-    preds = rgr.predict(fold_test_data)
+    # rgr.fit(fold_train_data, fold_train_labels)
+    # preds = rgr.predict(fold_test_data)
+    gpr.fit(fold_train_data, fold_train_labels)
+    preds = gpr.predict(fold_test_data)
     CV_preds[test_index] = preds
     rmse_per_fold[i] = np.sqrt(mean_squared_error(fold_test_labels, preds))
     CV_preds[test_index] = preds
     
-std_RMSE = np.sqrt(rmse_per_fold)
+std_RMSE = np.std(rmse_per_fold)
 overall_RMSE = np.sqrt(mean_squared_error(log_train_sale_price, CV_preds))
 print ('std of RMSE over folds = ' + str(std_RMSE))
 print ('overall RMSE = ' + str(overall_RMSE))
